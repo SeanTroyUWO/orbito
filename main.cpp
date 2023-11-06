@@ -33,6 +33,9 @@ const unsigned int TOP_RIGHT_VERT_WIN = BOT_RIGHT_VERT_WIN << 16;
 const unsigned int TOP_SINISTER_WIN = BOT_SINISTER_WIN << 16;
 const unsigned int TOP_DEXTER_WIN = BOT_DEXTER_WIN << 16;
 
+std::vector<unsigned int> allPositions;
+std::unordered_map<unsigned int, int> allPositionsAlpha; //values in table are saved before rotating
+std::unordered_map<unsigned int, int> allPositionsBeta; //values in table are saved before rotating
 
 //  9,  8,  7, 6
 // 10, 15, 14, 5
@@ -45,6 +48,9 @@ const unsigned int TOP_DEXTER_WIN = BOT_DEXTER_WIN << 16;
 //scores: -9 -> 10, 0 is a draw. Positive bot wins, negative top wins
 //You get 1 point for every unplaced stone, plus 1
 // (BOARD_SIZE - (botCount + topCount)) + 1
+
+//Alpha: min for the maximizer, bot
+//Beta: max for the minimizer, top
 
 void printBoard(unsigned int board)
 {
@@ -106,6 +112,7 @@ bool topChecks(unsigned int board)
 
 unsigned int winShift(unsigned int board) //0: no 1:bot 2:top 3:draw
 {
+    //This does not rotate
    unsigned int outside = board & (board << 1) & (board << 2) & (board << 3); //outside
 
    unsigned int botWin = BOT_OUTSIDE_WIN & outside;
@@ -129,7 +136,7 @@ unsigned int winShift(unsigned int board) //0: no 1:bot 2:top 3:draw
    return 0;
 }
 
-int countBotPlaces(int inputBoard)
+int countBotPlaces(unsigned int inputBoard)
 {
     int count = 0;
     int botBoard = inputBoard & BOT_BOARD;
@@ -141,7 +148,7 @@ int countBotPlaces(int inputBoard)
     return count;
 }
 
-int countTopPlaces(int inputBoard)
+int countTopPlaces(unsigned int inputBoard)
 {
     int count = 0;
     int topBoard = (inputBoard & TOP_BOARD) >> 16;
@@ -185,27 +192,255 @@ void generateBotBinarys(std::vector<unsigned int>& boards, unsigned int board, i
     }
 }
 
-int botNegamax(unsigned int board)
+void generateScoreMap()
 {
+    for(int i = 0; i < allPositions.size(); i++)
+    {
+        int marblesPlaced = countBotPlaces(allPositions[i]) + countTopPlaces(allPositions[i]);
+
+        if(marblesPlaced == BOARD_SIZE) //rotate 5 times rule
+        {
+            unsigned int rotatedBoard = rotate(allPositions[i]);
+            int winValue = 0;
+            for(int rotations = 1; rotations <= 5; rotations++)
+            {
+                winValue = winShift(rotatedBoard);
+                if(winValue) break;
+                rotatedBoard = rotate(rotatedBoard);
+            }
+
+            if(winValue == 1)
+            {
+                int boundValue = (BOARD_SIZE - marblesPlaced) + 1;
+                allPositionsAlpha[allPositions[i]] = boundValue;
+                allPositionsBeta[allPositions[i]] = boundValue;
+            }
+            else if(winValue == 2)
+            {
+                int boundValue = -((BOARD_SIZE - marblesPlaced) + 1);
+                allPositionsAlpha[allPositions[i]] = boundValue;
+                allPositionsBeta[allPositions[i]] = boundValue;
+            }
+            else if(winValue == 3)
+            {
+                allPositionsAlpha[allPositions[i]] = 0;
+                allPositionsBeta[allPositions[i]] = 0;
+            }
+            else
+            {
+                allPositionsAlpha[allPositions[i]] = -400; //unknown
+                allPositionsBeta[allPositions[i]] = 400; //unknown
+            }
+
+            continue;
+        }
+
+        if(int winValue = winShift(rotate(allPositions[i])))
+        {
+            if(winValue == 1)
+            {
+                int boundValue = (BOARD_SIZE - marblesPlaced) + 1;
+                allPositionsAlpha[allPositions[i]] = boundValue;
+                allPositionsBeta[allPositions[i]] = boundValue;
+            }
+            else if(winValue == 2)
+            {
+                int boundValue = -((BOARD_SIZE - marblesPlaced) + 1);
+                allPositionsAlpha[allPositions[i]] = boundValue;
+                allPositionsBeta[allPositions[i]] = boundValue;
+            }
+            else if(winValue == 3)
+            {
+                allPositionsAlpha[allPositions[i]] = 0;
+                allPositionsBeta[allPositions[i]] = 0;
+            }
+        } else
+        {
+            allPositionsAlpha[allPositions[i]] = -400;
+            allPositionsBeta[allPositions[i]] = 400;
+        }
+    }
+}
+
+void generateBotMoves(std::vector<unsigned int>& resultBoardsList, unsigned int board)
+{
+    //Doesn't rotate
+    assert((countBotPlaces(board) - countTopPlaces(board)) == 0);
+
     static const std::vector<std::vector<int>> nearby{{11,1},{0,12,2},{1, 3,3},{2,4},{13,5,3},{14,6,4},{7,5},{8,6,14},{9,7,15},{8,10},
                                                       {9,15,11},{10,12,0},{11,15,13,1},{12,14,4,2},{15,7,5,13},{10,8,14,12}};
-    board = rotate(board);
 
-    unsigned int top = (board & TOP_BOARD) >> 16;
     for(int i = 16; i < 32; i++) // For every opponent marble. This is optional
     {
         if(!(board & (1<<i))) continue;
-        for(int localMoves : nearby[i])
+        for(int localMove : nearby[i-16])
         {
-            if(board & ((1<<localMoves) | (1<<(localMoves+16)))) continue; // if filled
-            for(int j = 0; j < 16; j++ ) // For every Option we have
+            if(board & ((1<<localMove) | (1<<(localMove+16)))) continue; // if spot to move opponents is filled
+            for(int j = 0; j < 16; j++ ) // For every move option we have
             {
+                //if: taken by me, taken by top, unless moved by us
+                //spot we are opp marble moving to
+                if((board & ((1<<j) | (1<<(j+16)) & ~(1 << i))) ||
+                   (j == localMove)) continue;
 
+                //i: newly free spot from opponent marble we moved
+                //localMove: newly taken spot of opp marble
+                //j: our new marble spot
+                resultBoardsList.push_back((board | (1<<j) | (1<<(localMove+16))) & ~(1 << i));
             }
         }
     }
-    int score = 0;
-    return score;
+
+    for(int j = 0; j < 16; j++ ) // For every move option we have
+    {
+        //if: taken by me, taken by top
+        if(board & ((1<<j) | (1<<(j+16)))) continue;
+
+        //j: our new marble spot
+        resultBoardsList.push_back(board | (1<<j));
+    }
+}
+
+void generateTopMoves(std::vector<unsigned int>& resultBoardsList, unsigned int board)
+{
+    //Doesn't rotate
+    assert((countBotPlaces(board) - countTopPlaces(board)) == 1);
+
+    static const std::vector<std::vector<int>> nearby{{11,1},{0,12,2},{1, 3,3},{2,4},{13,5,3},{14,6,4},{7,5},{8,6,14},{9,7,15},{8,10},
+                                                      {9,15,11},{10,12,0},{11,15,13,1},{12,14,4,2},{15,7,5,13},{10,8,14,12}};
+
+    for(int i = 0; i < 16; i++) // For every opponent marble. This is optional
+    {
+        if(!(board & (1<<i))) continue;
+        for(int localMove : nearby[i])
+        {
+            if(board & ((1<<localMove) | (1<<(localMove+16)))) continue; // if spot to move opponents is filled
+            for(int j = 16; j < 32; j++) // For every move option we have
+            {
+                //if: taken by me, taken by bot, unless moved by us
+                //spot we are opp marble moving to
+                if((board & ((1<<j) | (1<<(j-16)) & ~(1 << i))) ||
+                   (j-16 == localMove)) continue;
+
+                //i: newly free spot from opponent marble we moved
+                //localMove: newly taken spot of opp marble
+                //j: our new marble spot
+                resultBoardsList.push_back((board | (1<<j) | (1<<(localMove))) & ~(1 << i));
+            }
+        }
+    }
+
+    for(int j = 16; j < 32; j++) // For every move option we have
+    {
+        //if: taken by me, taken by top
+        if(board & ((1<<j) | (1<<(j-16)))) continue;
+
+        //j: our new marble spot
+        resultBoardsList.push_back(board | (1<<j));
+    }
+}
+
+double progressCheck()
+{
+    double states = allPositionsAlpha.size() + allPositionsBeta.size();
+    int filledStates = 0;
+
+    for(auto alphaPair: allPositionsAlpha) if(alphaPair.second != -400) filledStates+=1;
+    for(auto betaPair: allPositionsBeta) if(betaPair.second != 400) filledStates+=1;
+    return filledStates/states;
+}
+
+int botNegamax(unsigned int board, int alpha, int beta, int& nodes);
+int topNegamax(unsigned int board, int alpha, int beta, int& nodes);
+
+int botNegamax(unsigned int board, int alpha, int beta, int& nodes)
+{
+    assert(alpha < beta);
+    assert(allPositionsBeta.count(board) && allPositionsAlpha.count(board));
+    assert((countBotPlaces(board) - countTopPlaces(board)) == 0);
+
+    int alphaCheck = allPositionsAlpha[board];
+    int betaCheck = allPositionsBeta[board];
+
+    if(alphaCheck > alpha) alpha = alphaCheck;
+    if(betaCheck < beta) beta = betaCheck;
+
+    if(alpha >= beta) return alpha;
+
+    nodes++;
+    if(!(nodes%100000))
+    {
+        std::cout << "nodes: " << nodes /*<< " progress: " << progressCheck()*/ << std::endl;
+    }
+
+    unsigned int rotatedBoard = rotate(board);
+    assert(!winShift(rotatedBoard));
+
+    std::vector<unsigned int> resultBoardsList;
+    generateBotMoves(resultBoardsList, rotatedBoard);
+
+    for(unsigned int moveBoard: resultBoardsList)
+    {
+        int currentScore = topNegamax(moveBoard, alpha, beta, nodes);
+        if(currentScore > alpha)
+        {
+            alpha = currentScore;
+            allPositionsAlpha[board] = alpha;
+            if(alpha >= beta)
+            {
+                return alpha;
+            }
+        }
+    }
+    resultBoardsList.clear();
+
+    allPositionsBeta[board] = alpha;
+    return alpha;
+}
+
+int topNegamax(unsigned int board, int alpha, int beta, int& nodes)
+{
+    assert(alpha < beta);
+    assert(allPositionsAlpha.count(board) && allPositionsBeta.count(board));
+    assert((countBotPlaces(board) - countTopPlaces(board)) == 1);
+
+    int alphaCheck = allPositionsAlpha[board];
+    int betaCheck = allPositionsBeta[board];
+
+    if(alphaCheck > alpha) alpha = alphaCheck;
+    if(betaCheck < beta) beta = betaCheck;
+
+    if(alpha >= beta) return beta;
+
+    nodes++;
+    if(!(nodes%100000))
+    {
+        std::cout << "nodes: " << nodes /*<< " progress: " << progressCheck()*/ << std::endl;
+    }
+
+    unsigned int rotatedBoard = rotate(board);
+    assert(!winShift(rotatedBoard));
+
+    std::vector<unsigned int> resultBoardsList;
+    generateTopMoves(resultBoardsList, rotatedBoard);
+
+    for(unsigned int moveBoards: resultBoardsList)
+    {
+        int currentScore = botNegamax(moveBoards, alpha, beta, nodes);
+        if(currentScore < beta)
+        {
+            beta = currentScore;
+            allPositionsBeta[board] = beta;
+            if(alpha >= beta)
+            {
+                return beta;
+            }
+        }
+    }
+    resultBoardsList.clear();
+
+    allPositionsAlpha[board] = beta;
+    return beta;
 }
 
 int main()
@@ -213,25 +448,24 @@ int main()
     int numTestBoards = 6;
     unsigned int testBoards[numTestBoards] = {1252664661, 2147487744, 2420247048, 4327977, 1145342088, 2048};
 
-    for(int i = 0; i < numTestBoards; i++)
-    {
-        std::cout << i << ":" << std::endl;
-        printBoard(testBoards[i]);
-        testBoards[i] = rotate(testBoards[i]);
-        printBoard(testBoards[i]);
-    }
+//    for(int i = 0; i < numTestBoards; i++)
+//    {
+//        std::cout << i << ":" << std::endl;
+//        printBoard(testBoards[i]);
+//        testBoards[i] = rotate(testBoards[i]);
+//        printBoard(testBoards[i]);
+//    }
 
     //Try to generate all positions?
     int botPlaced = 0;
-    std::vector<unsigned int> allPositions;
-    std::unordered_map<unsigned int, int> allPositionsScore;
-
     while(botPlaced <= BOARD_SIZE/2)
     {
         std::cout << "placed: " << botPlaced << std::endl;
         generateBotBinarys(allPositions, 0, 0, botPlaced);
         botPlaced += 1;
     }
+    std::cout << "size: " << allPositions.size() << std::endl;
+
 
 //    for(int i = 10160000; i < allPositions.size(); i++)
 //    {
@@ -243,20 +477,28 @@ int main()
 //        }
 //    }
 
-    //missed win:550952, 550898
+    generateScoreMap();
 
-//    printBoard(allPositions[550952]);
-//    std::cout << winShift(allPositions[550952]);
+//    std::vector<unsigned int> testMoves;
+//    for(int i = 2160000; i < 3160000; i++)
+//    {
+//        std::cout << "Starting board: " << std::endl;
+//        printBoard(allPositions[i]);
+////        generateBotMoves(testMoves, allPositions[i]);
+//        generateTopMoves(testMoves, allPositions[i]);
 
-//    printBoard(allPositions[550898]);
-//    std::cout << winShift(allPositions[550898]);
+//        for(unsigned int move: testMoves)
+//        {
+//            printBoard(move);
+//        }
+//        testMoves.clear();
+//    }
 
-//    std::cout << "size: " << allPositions.size() << std::endl;
+    int nodes = 0;
+    int value = botNegamax(0, -BOARD_SIZE, BOARD_SIZE, nodes);
 
-    for(int i = 0; i < allPositions.size(); i++)
-    {
-        if(int winValue = )
-    }
+    std::cout << "score: " << value << std::endl;
 
+    int stopper =0;
     return 0;
 }
