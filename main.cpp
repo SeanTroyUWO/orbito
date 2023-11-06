@@ -1,5 +1,6 @@
 #include <cassert>
 #include <iostream>
+#include <unordered_map>
 #include <vector>
 
 //wining function
@@ -37,6 +38,8 @@ const unsigned int TOP_DEXTER_WIN = BOT_DEXTER_WIN << 16;
 // 10, 15, 14, 5
 // 11, 12, 13, 4
 //  0,  1,  2, 3
+
+
 
 //bot is going to be white, and is first for everything that can be first
 //scores: -9 -> 10, 0 is a draw. Positive bot wins, negative top wins
@@ -138,6 +141,18 @@ int countBotPlaces(int inputBoard)
     return count;
 }
 
+int countTopPlaces(int inputBoard)
+{
+    int count = 0;
+    int topBoard = (inputBoard & TOP_BOARD) >> 16;
+    while(topBoard)
+    {
+        count += topBoard & 1;
+        topBoard >>= 1;
+    }
+    return count;
+}
+
 void generateTopBinarys(std::vector<unsigned int>& boards, unsigned int board, int startIndex, int remainingBits)
 {
     if(remainingBits <= 0)
@@ -170,13 +185,24 @@ void generateBotBinarys(std::vector<unsigned int>& boards, unsigned int board, i
     }
 }
 
-int botNegamax(int board, int alpha, int beta)
+int botNegamax(unsigned int board)
 {
+    static const std::vector<std::vector<int>> nearby{{11,1},{0,12,2},{1, 3,3},{2,4},{13,5,3},{14,6,4},{7,5},{8,6,14},{9,7,15},{8,10},
+                                                      {9,15,11},{10,12,0},{11,15,13,1},{12,14,4,2},{15,7,5,13},{10,8,14,12}};
+    board = rotate(board);
+
     unsigned int top = (board & TOP_BOARD) >> 16;
     for(int i = 16; i < 32; i++) // For every opponent marble. This is optional
     {
         if(!(board & (1<<i))) continue;
-        for
+        for(int localMoves : nearby[i])
+        {
+            if(board & ((1<<localMoves) | (1<<(localMoves+16)))) continue; // if filled
+            for(int j = 0; j < 16; j++ ) // For every Option we have
+            {
+
+            }
+        }
     }
     int score = 0;
     return score;
@@ -198,6 +224,7 @@ int main()
     //Try to generate all positions?
     int botPlaced = 0;
     std::vector<unsigned int> allPositions;
+    std::unordered_map<unsigned int, int> allPositionsScore;
 
     while(botPlaced <= BOARD_SIZE/2)
     {
@@ -206,15 +233,15 @@ int main()
         botPlaced += 1;
     }
 
-    for(int i = 10160000; i < allPositions.size(); i++)
-    {
-        printBoard(allPositions[i]);
-        std::cout << "score is: " << winShift(allPositions[i]) << " for i: " << i << std::endl;
-        if(winShift(allPositions[i]) != 0 )
-        {
-            std::cout << "  ^win" << std::endl;
-        }
-    }
+//    for(int i = 10160000; i < allPositions.size(); i++)
+//    {
+//        printBoard(allPositions[i]);
+//        std::cout << "score is: " << winShift(allPositions[i]) << " for i: " << i << std::endl;
+//        if(winShift(allPositions[i]) != 0 )
+//        {
+//            std::cout << "  ^win" << std::endl;
+//        }
+//    }
 
     //missed win:550952, 550898
 
@@ -224,7 +251,12 @@ int main()
 //    printBoard(allPositions[550898]);
 //    std::cout << winShift(allPositions[550898]);
 
-    std::cout << "size: " << allPositions.size() << std::endl;
+//    std::cout << "size: " << allPositions.size() << std::endl;
+
+    for(int i = 0; i < allPositions.size(); i++)
+    {
+        if(int winValue = )
+    }
 
     return 0;
 }
