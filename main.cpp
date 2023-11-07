@@ -1,14 +1,11 @@
 #include <algorithm>
 #include <cassert>
 #include <climits>
+#include <cstdlib>
 #include <iostream>
 #include <sstream>
 #include <unordered_map>
 #include <vector>
-
-//wining function
-//test winning funciton
-//copy paste the alpha beta
 
 const unsigned int BOT_BOARD = 65535;
 const unsigned int TOP_BOARD = 4294901760;
@@ -55,7 +52,7 @@ std::unordered_map<unsigned int, int> allPositionsBeta; //values in table are sa
 
 void printBoard(unsigned int board)
 {
-    static const int printOrder[16] = {9,8,7,6,10,15,14,5,11,12,13,4,0,1,2,3};//order to get the right print
+    static const int printOrder[16] = {9,8,7,6,10,15,14,5,11,12,13,4,0,1,2,3};
 
     unsigned int bot = board & BOT_BOARD;
     unsigned int top = (board & TOP_BOARD) >> 16;
@@ -111,6 +108,31 @@ bool topChecks(unsigned int board)
     return false;
 }
 
+
+int countBotPlaces(unsigned int inputBoard)
+{
+    int count = 0;
+    int botBoard = inputBoard & BOT_BOARD;
+    while(botBoard)
+    {
+        count += botBoard & 1;
+        botBoard >>= 1;
+    }
+    return count;
+}
+
+int countTopPlaces(unsigned int inputBoard)
+{
+    int count = 0;
+    int topBoard = (inputBoard & TOP_BOARD) >> 16;
+    while(topBoard)
+    {
+        count += topBoard & 1;
+        topBoard >>= 1;
+    }
+    return count;
+}
+
 unsigned int winShift(unsigned int board) //0: no 1:bot 2:top 3:draw
 {
     //This does not rotate
@@ -137,28 +159,21 @@ unsigned int winShift(unsigned int board) //0: no 1:bot 2:top 3:draw
    return 0;
 }
 
-int countBotPlaces(unsigned int inputBoard)
+unsigned int endGameWinShift(unsigned int board) //End of game 5 rotations rule
 {
-    int count = 0;
-    int botBoard = inputBoard & BOT_BOARD;
-    while(botBoard)
+    if(countBotPlaces(board) + countTopPlaces(board) == BOARD_SIZE)
     {
-        count += botBoard & 1;
-        botBoard >>= 1;
+        board;
+        int winValue = 0;
+        for(int i = 0; i < 6; i++) // Rules say 5 "more times", so standard rotate not included
+        { //should be 6 checks in total than
+            winValue = winShift(board);
+            if(winValue) return winValue;
+            board = rotate(board);
+        }
+        return 3;
     }
-    return count;
-}
-
-int countTopPlaces(unsigned int inputBoard)
-{
-    int count = 0;
-    int topBoard = (inputBoard & TOP_BOARD) >> 16;
-    while(topBoard)
-    {
-        count += topBoard & 1;
-        topBoard >>= 1;
-    }
-    return count;
+    return winShift(board);
 }
 
 void generateTopBinarys(std::vector<unsigned int>& boards, unsigned int board, int startIndex, int remainingBits)
@@ -341,16 +356,6 @@ void generateTopMoves(std::vector<unsigned int>& resultBoardsList, unsigned int 
     }
 }
 
-double progressCheck()
-{
-    double states = allPositionsAlpha.size() + allPositionsBeta.size();
-    int filledStates = 0;
-
-    for(auto alphaPair: allPositionsAlpha) if(alphaPair.second != -400) filledStates+=1;
-    for(auto betaPair: allPositionsBeta) if(betaPair.second != 400) filledStates+=1;
-    return filledStates/states;
-}
-
 int botNegamax(unsigned int board, int alpha, int beta, int& nodes);
 int topNegamax(unsigned int board, int alpha, int beta, int& nodes);
 
@@ -371,7 +376,7 @@ int botNegamax(unsigned int board, int alpha, int beta, int& nodes)
     nodes++;
     if(!(nodes%1000000))
     {
-        std::cout << "nodes: " << nodes /*<< " progress: " << progressCheck()*/ << std::endl;
+        std::cout << "nodes: " << nodes << std::endl;
     }
 
     unsigned int rotatedBoard = rotate(board);
@@ -416,7 +421,7 @@ int topNegamax(unsigned int board, int alpha, int beta, int& nodes)
     nodes++;
     if(!(nodes%1000000))
     {
-        std::cout << "nodes: " << nodes /*<< " progress: " << progressCheck()*/ << std::endl;
+        std::cout << "nodes: " << nodes << std::endl;
     }
 
     unsigned int rotatedBoard = rotate(board);
@@ -452,6 +457,14 @@ void interactiveBotPlay(unsigned int board)
     std::cout << "\nPosition:" << std::endl;
     printBoard(board);
 
+    if(endGameWinShift(board) == 1)
+    {
+        std::cout << "First Player Wins. Press enter to Reverse" << std::endl;
+        std::cin.get();
+        return;
+    }
+    assert(!endGameWinShift(board));
+
     std::vector<unsigned int> resultBoardsList;
     generateBotMoves(resultBoardsList, board);
     unsigned int newBoard = 0;
@@ -460,7 +473,7 @@ void interactiveBotPlay(unsigned int board)
     {
         int nodes;
         int outputScore = topNegamax(moveBoard, -1, 1, nodes);
-        if(outputScore == 1)
+        if(outputScore >= 1)
         {
             newBoard = moveBoard;
             break;
@@ -478,7 +491,6 @@ void interactiveBotPlay(unsigned int board)
     if(winShift(newBoard) == 1)
     {
         std::cout << "First Player Wins. Press enter to Reverse" << std::endl;
-//        std::cin.ignore(INT_MAX,'\n');
         std::cin.get();
         return;
     }
@@ -496,7 +508,9 @@ bool isInt(const std::string& input)
 
 void playerTopPlay(unsigned int board)
 {
-    std::string input;
+    std::string inputI;
+    std::string inputJ;
+    std::string inputK;
 
     std::vector<unsigned int> resultBoardsList;
     generateTopMoves(resultBoardsList, board);
@@ -505,11 +519,10 @@ void playerTopPlay(unsigned int board)
     {
         std::cout << "\nWhat would you like to play? (H for Help)" << std::endl;
 
-        std::cin >> input;
+        std::cin >> inputI >> inputJ >> inputK;
         std::cin.ignore(INT_MAX,'\n');
-        std::stringstream streamInput(input);
 
-        if(input.length() == 1 && std::tolower(input[0]) == 'h')
+        if(inputI.length() == 1 && std::tolower(inputI[0]) == 'h')
         {
             std::cout << "Indices for moves:" << std::endl;;
             std::cout << " 9,  8,  7, 6\n";
@@ -521,16 +534,16 @@ void playerTopPlay(unsigned int board)
             std::cout << "Go back one move: k\n";
             std::cout << "Play a move without moving an opponents marble: i\nWhere i is an integer value of the chosen location\n\n";
             std::cout << "Play a move with moving an opponents marble: i j k\n"
-                         "Where i is an integer value of opponents marble you wish to move\n"
-                         "j is an integer value of the location you wish to move it to \n"
-                         "k is an integer value of the location you wish to place your marble" << std::endl;
-        } else if(input.length() == 1 && std::tolower(input[0]) == 'k')
+                         "Where i is an integer value of location you wish to place your marble\n"
+                         "j is an integer value of the location of an opponents marble you wish to move\n"
+                         "k is an integer value of the location you wish to move the opponents marble" << std::endl;
+        } else if(inputI.length() == 1 && std::tolower(inputI[0]) == 'k')
         {
             std::cout << "Returning..." << std::endl;
             return;
-        } else if(input.length() <= 2  && isInt(input))
+        } else if(inputI.length() <= 2  && isInt(inputI) && inputJ == "" && inputK == "")
         {
-            int i = std::stoi(input)+16;
+            int i = std::stoi(inputI)+16;
 
             unsigned int newPosition = board | (1<<i);
             auto moveIter = std::find(resultBoardsList.begin(), resultBoardsList.end(), newPosition);
@@ -540,114 +553,205 @@ void playerTopPlay(unsigned int board)
                 continue;
             } else
             {
+                std::cout << "After your move:\n";
+                printBoard(newPosition);
                 interactiveBotPlay(rotate(newPosition));
+                std::cout << "You've returned to here:\n";
+                printBoard(board);
+            }
+        } else if(inputI != "" && inputJ != "" && inputK != "" && isInt(inputI) && isInt(inputJ) && isInt(inputK))
+        {
+            int i = std::stoi(inputI)+16;
+            int j = std::stoi(inputJ);
+            int k = std::stoi(inputK);
+
+            std::cout << i << j << k << "\n";
+
+            unsigned int newPosition = (board | (1<<i) | (1<<k)) & ~(1 << j);
+
+            auto moveIter = std::find(resultBoardsList.begin(), resultBoardsList.end(), newPosition);
+            if(moveIter == resultBoardsList.end())
+            {
+                std::cout << "Invalid move." << std::endl;
+            } else
+            {
+                std::cout << "After your move:\n";
+                printBoard(newPosition);
+                interactiveBotPlay(rotate(newPosition));
+
                 std::cout << "You've returned to here:\n ";
                 printBoard(board);
             }
         } else
         {
-            std::string stringI;
-            std::string stringJ;
-            std::string stringK;
+            std::cout << "Unrecognized move." << std::endl;
+        }
+    }
+}
 
-            std::getline(streamInput, stringI, ' ');
-            std::getline(streamInput, stringJ, ' ');
-            std::getline(streamInput, stringK, ' ');
+void randomWalk()
+{
+    std::vector<unsigned int> resultBoardsList;
+    std::srand(1);
 
-            if((stringI == "" || stringJ == "" || stringK == "") || !(isInt(stringI) && isInt(stringJ) && isInt(stringK)))
+    std::cout << "Starting Random Walks: " << std::endl;
+
+    int i = 0;
+    while(true)
+    {
+        std::cout << "i: " << i;
+        unsigned int board = 0;
+        int winValue = 0;
+
+        while(true)
+        {
+            //BOT PLAYS
+            resultBoardsList.clear();
+            generateBotMoves(resultBoardsList, board);
+
+            unsigned int newBoard = 0;
+            for(unsigned int moveBoard: resultBoardsList)
             {
-                std::cout << "Unrecognized move." << std::endl;
-            } else
-            {
-                int i = std::stoi(stringI);
-                int j = std::stoi(stringJ);
-                int k = std::stoi(stringK) + 16;
-
-                unsigned int newPosition = (board | (1<<k) | (1<<j)) & ~(1 << i);
-
-                auto moveIter = std::find(resultBoardsList.begin(), resultBoardsList.end(), newPosition);
-                if(moveIter == resultBoardsList.end())
+                int nodes;
+                int outputScore = topNegamax(moveBoard, -1, 1, nodes);
+                if(outputScore >= 1)
                 {
-                    std::cout << "Invalid move." << std::endl;
-                } else
-                {
-                    interactiveBotPlay(rotate(newPosition));
-
-                    std::cout << "You've returned to here:\n ";
-                    printBoard(board);
+                  newBoard = moveBoard;
+                  break;
                 }
             }
+            assert(newBoard);
+
+            std::cout << " " << newBoard;
+
+            board = rotate(newBoard);
+            winValue = winShift(board);
+
+            if(winValue == 1)
+            {
+              std::cout << " Win" << std::endl;
+              break;
+            } else if(winValue)
+            {
+              std::cout << "Error?" << std::endl;
+              assert(0);
+              break;
+            }
+
+            //TOP PLAYS:
+            resultBoardsList.clear();
+            generateTopMoves(resultBoardsList, board);
+
+            board = resultBoardsList[std::rand() % resultBoardsList.size()];
+            std::cout << " " << board;
+
+            board = rotate(board);
+            winValue = endGameWinShift(board);
+            if(winValue == 1)
+            {
+              std::cout << " Win" << std::endl;
+              break;
+            } else if(winValue)
+            {
+              std::cout << "Error?" << std::endl;
+              assert(0);
+              break;
+            }
         }
+
+        i++;
     }
 }
 
 int main()
 {
-    int numTestBoards = 6;
-    unsigned int testBoards[numTestBoards] = {1252664661, 2147487744, 2420247048, 4327977, 1145342088, 2048};
+//     unsigned int testArray[] = {1,
+//     134217730   ,
+//     134217734   ,
+//     134283276   ,
+//     134348825   ,
+//     1376298     ,
+//     1074401364  ,
+//     3222544488  ,
+//     2284339664  ,
+//     282182432   ,
+//     564237892   ,
+//     1665277068  ,
+//     2258921753  ,
+//     499687987   ,
+//     730453094   ,
+//     1194571980  ,
+//     0           ,
+//     2147483648  ,
+//     134217729   ,
+//     16842756    ,
+//     33619978    ,
+//     67764260    ,
+//     135397449   ,
+//     6635538     ,
+//     13205542    ,
+//     59904076    ,
+//     119677081   ,
+//     239423792   ,
+//     478782050   ,
+//     2836615876  ,
+//     1512482200  ,
+//     2756663984  ,
+//     0           ,
+//     67108864    ,
+//     67108865    ,
+//     134283266   ,
+//     134348805   ,
+//     2428936     ,
+//     4792338     ,
+//     43130916    ,
+//     86130761    ,
+//     440696970   ,
+//     747114773   ,
+//     1226121770  ,
+//     2318025813  ,
+//     374671786   ,
+//     1017660245  ,
+//     1767212714  ,
+//     2729139540};
 
-//    for(int i = 0; i < numTestBoards; i++)
-//    {
-//        std::cout << i << ":" << std::endl;
-//        printBoard(testBoards[i]);
-//        testBoards[i] = rotate(testBoards[i]);
-//        printBoard(testBoards[i]);
-//    }
+//     for(int i = 0; i< 49; i++)
+//     {
+//         std::cout << "play: " << std::endl;
+//         printBoard(testArray[i]);
+//         std::cout << "rotate: " << std::endl;
+//         printBoard(rotate(testArray[i]));
+//     }
 
-    //Try to generate all positions?
+//    endGameWinShift(1194571980);
+
     int botPlaced = 0;
     while(botPlaced <= BOARD_SIZE/2)
     {
-//        std::cout << "placed: " << botPlaced << std::endl;
         generateBotBinarys(allPositions, 0, 0, botPlaced);
         botPlaced += 1;
     }
-    std::cout << "size: " << allPositions.size() << std::endl;
-
-
-//    for(int i = 10160000; i < allPositions.size(); i++)
-//    {
-//        printBoard(allPositions[i]);
-//        std::cout << "score is: " << winShift(allPositions[i]) << " for i: " << i << std::endl;
-//        if(winShift(allPositions[i]) != 0 )
-//        {
-//            std::cout << "  ^win" << std::endl;
-//        }
-//    }
+    std::cout << "Position Table Size: " << allPositions.size() << std::endl;
 
     generateScoreMap();
-
-//    std::vector<unsigned int> testMoves;
-//    for(int i = 2160000; i < 3160000; i++)
-//    {
-//        std::cout << "Starting board: " << std::endl;
-//        printBoard(allPositions[i]);
-////        generateBotMoves(testMoves, allPositions[i]);
-//        generateTopMoves(testMoves, allPositions[i]);
-
-//        for(unsigned int move: testMoves)
-//        {
-//            printBoard(move);
-//        }
-//        testMoves.clear();
-//    }
 
     int nodes = 0;
     int winValue = botNegamax(0, -1, 1, nodes);
 
     if(winValue == 1)
     {
-        std::cout << "First Player Wins." << std::endl;
+        std::cout << "First player wins after " << nodes << " nodes." << std::endl;
     }else
     {
          std::cout << "...What?";
          assert(0);
     }
 
-    std::cout << "\n\nPress Enter to play." <<std::endl;
-    std::cin.get();
+//    std::cout << "\n\nPress Enter to play." <<std::endl;
+//    std::cin.get();
+//    interactiveBotPlay(0);
 
-    interactiveBotPlay(0);
+    randomWalk();
 
     return 0;
 }
