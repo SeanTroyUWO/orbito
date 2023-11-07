@@ -6,17 +6,21 @@ It utilizes the alpha-beta pruning negamax algorithm with a state table and an e
 There are many optimizations to be made here but this runs quickly enough. 
 
 # Total States
-The best upper board for the number of states I found is 10165779. Certainly some of these are invalid, or can never be reached. This can we found with the equation below, where $S$ is the size of the board. 
+
+The best upper board for the number of states I found is 10165779. Certainly some of these are invalid, or can never be reached. This can we found with the equation below, where $S$ is the size of the board. <br>
 $$ 1+\sum_{i=1}^{S/2}(\frac{S!}{i!\times(S-i)!} \frac{(S-i)!}{i!\times(S-2i)!} + \frac{S!}{i!\times(S-i)!} \frac{(S-i)!}{(i-1)!\times(S-2i-1)!}) $$
 
 # Representation
+
 Every game state can be efficient represented by one 32 bit integer. The bottom 16 bits represent the locations of the first players marbles, while the top 16 bits represent the locations of the second players marbles. The map of bit locations can be found below. For the second player, or the top player, all of these values are 16 higher:
-   9,  8,  7, 6
-  10, 15, 14, 5
-  11, 12, 13, 4
-   0,  1,  2, 3
+
+   9,  8,  7, 6<br>
+  10, 15, 14, 5<br>
+  11, 12, 13, 4<br>
+   0,  1,  2, 3<br>
 
 # Verification
+
 -Random walks, even after 100 million 
 -Other stuff idk 
 
