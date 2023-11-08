@@ -686,11 +686,11 @@ int main()
          assert(0);
     }
 
-    std::cout << "\n\nPress Enter to play." <<std::endl;
-    std::cin.get();
-    interactiveBotPlay(0);
+//    std::cout << "\n\nPress Enter to play." <<std::endl;
+//    std::cin.get();
+//    interactiveBotPlay(0);
 
-//    randomWalk();
+    randomWalk();
 
     return 0;
 }
