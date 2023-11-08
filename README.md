@@ -1,9 +1,7 @@
 # orbito
-This progress designs a brute for solution to [Orbito](https://flexiqgames.com/en/product/orbito/), a two player game from FlexIQ. The first player can win orbito with perfect play. 
+This project designs a brute force solver for [Orbito](https://flexiqgames.com/en/product/orbito/), a two player game from FlexIQ. The first player can win orbito with perfect play. 
 
-It utilizes the alpha-beta pruning negamax algorithm with a state table and an efficient representation (32 bits). It should weakly solve the game on most machines in less than a minute while asserts are not compiled in. The conclusion can be verified with random walks, or by an interactive player mode where the perfect AI can be tested.
-
-There are many optimizations to be made here but this runs quickly enough. 
+It utilizes the alpha-beta pruning negamax algorithm with a state table. It should weakly solve the game on most machines in less than a minute, while asserts are not compiled in. The conclusion can be verified with random walks, or by an interactive player mode where the perfect AI can be tested.
 
 # Total States
 
@@ -24,6 +22,6 @@ Every game state can be efficient represented by one 32 bit integer. The bottom 
 
 # Verification
 
-After running 100 Million random walks, no second player victories were found. 
+After running 100 Million random walks, no second player victories, or draws were found. The conclusion can also be verified by running `interactiveBotPlay(0)`, where you can play against a perfect AI. 
 
 
