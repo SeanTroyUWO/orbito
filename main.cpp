@@ -108,7 +108,6 @@ bool topChecks(unsigned int board)
     return false;
 }
 
-
 int countBotPlaces(unsigned int inputBoard)
 {
     int count = 0;
@@ -665,66 +664,6 @@ void randomWalk()
 
 int main()
 {
-//     unsigned int testArray[] = {1,
-//     134217730   ,
-//     134217734   ,
-//     134283276   ,
-//     134348825   ,
-//     1376298     ,
-//     1074401364  ,
-//     3222544488  ,
-//     2284339664  ,
-//     282182432   ,
-//     564237892   ,
-//     1665277068  ,
-//     2258921753  ,
-//     499687987   ,
-//     730453094   ,
-//     1194571980  ,
-//     0           ,
-//     2147483648  ,
-//     134217729   ,
-//     16842756    ,
-//     33619978    ,
-//     67764260    ,
-//     135397449   ,
-//     6635538     ,
-//     13205542    ,
-//     59904076    ,
-//     119677081   ,
-//     239423792   ,
-//     478782050   ,
-//     2836615876  ,
-//     1512482200  ,
-//     2756663984  ,
-//     0           ,
-//     67108864    ,
-//     67108865    ,
-//     134283266   ,
-//     134348805   ,
-//     2428936     ,
-//     4792338     ,
-//     43130916    ,
-//     86130761    ,
-//     440696970   ,
-//     747114773   ,
-//     1226121770  ,
-//     2318025813  ,
-//     374671786   ,
-//     1017660245  ,
-//     1767212714  ,
-//     2729139540};
-
-//     for(int i = 0; i< 49; i++)
-//     {
-//         std::cout << "play: " << std::endl;
-//         printBoard(testArray[i]);
-//         std::cout << "rotate: " << std::endl;
-//         printBoard(rotate(testArray[i]));
-//     }
-
-//    endGameWinShift(1194571980);
-
     int botPlaced = 0;
     while(botPlaced <= BOARD_SIZE/2)
     {
@@ -747,11 +686,11 @@ int main()
          assert(0);
     }
 
-//    std::cout << "\n\nPress Enter to play." <<std::endl;
-//    std::cin.get();
-//    interactiveBotPlay(0);
+    std::cout << "\n\nPress Enter to play." <<std::endl;
+    std::cin.get();
+    interactiveBotPlay(0);
 
-    randomWalk();
+//    randomWalk();
 
     return 0;
 }

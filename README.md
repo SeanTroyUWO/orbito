@@ -7,7 +7,7 @@ There are many optimizations to be made here but this runs quickly enough.
 
 # Total States
 
-The best upper board for the number of states I found is 10165779. Certainly some of these are invalid, or can never be reached. This can we found with the equation below, where $S$ is the size of the board. 
+The best upper board for the number of states is 10165779. Certainly some of these are invalid, or can never be reached. This can we found with the equation below, where $S$ is the size of the board. 
 ```math
 1+\sum_{i=1}^{S/2}(\frac{S!}{i!\times(S-i)!} \frac{(S-i)!}{i!\times(S-2i)!} + \frac{S!}{i!\times(S-i)!} \frac{(S-i)!}{(i-1)!\times(S-2i-1)!})
 ```
@@ -24,7 +24,6 @@ Every game state can be efficient represented by one 32 bit integer. The bottom 
 
 # Verification
 
--Random walks, even after 100 million 
--Other stuff idk 
+After running 100 Million random walks, no second player victories were found. 
 
 
