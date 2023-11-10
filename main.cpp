@@ -9,7 +9,7 @@
 
 const unsigned int BOT_BOARD = 65535;
 const unsigned int TOP_BOARD = 4294901760;
-const size_t BOARD_SIZE = 16;
+const unsigned int BOARD_SIZE = 16;
 
 const unsigned int ROTATES_UP = 2013231103;
 const unsigned int ROTATES_BACK_11 = 134219776;
@@ -33,9 +33,49 @@ const unsigned int TOP_RIGHT_VERT_WIN = BOT_RIGHT_VERT_WIN << 16;
 const unsigned int TOP_SINISTER_WIN = BOT_SINISTER_WIN << 16;
 const unsigned int TOP_DEXTER_WIN = BOT_DEXTER_WIN << 16;
 
+const unsigned short TABLE_ENTRY_LOWER_BOUND = 255;
+const unsigned short TABLE_ENTRY_UPPER_BOUND = TABLE_ENTRY_LOWER_BOUND << 8;
+const int TABLE_ENTRY_ADJUSTMENT = BOARD_SIZE;
+
+const unsigned int ROTATE_1_BACK_3    = 267915256;
+const unsigned int ROTATE_1_FORWARD_9 = 458759;
+const unsigned int ROTATE_1_BACK_1    = 3758153728;
+const unsigned int ROTATE_1_FORWARD_3 = 268439552;
+
+const unsigned int ROTATE_2_BACK_6    = 264245184;
+const unsigned int ROTATE_2_FORWARD_6 = 4128831;
+const unsigned int ROTATE_2_FORWARD_2 = 805318656;
+const unsigned int ROTATE_2_BACK_2    = 3221274624;
+
+const unsigned int ROTATE_3_FORWARD_3 = 33489407;
+const unsigned int ROTATE_3_BACK_9    = 234884608;
+const unsigned int ROTATE_3_FORWARD_1 = 1879076864;
+const unsigned int ROTATE_3_BACK_3    = 2147516416;
+
+class TableEntry
+{
+public:
+    unsigned short value;
+    TableEntry() {}
+
+    TableEntry(int lowerInput, int upperInput) {
+        value = ((upperInput + BOARD_SIZE) << 8) | (lowerInput + BOARD_SIZE);
+        assert(this->lowerBound() == lowerInput && this->upperBound() == upperInput);
+    }
+    int lowerBound() {return (value & TABLE_ENTRY_LOWER_BOUND) - BOARD_SIZE;}
+    int upperBound() {return ((value & TABLE_ENTRY_UPPER_BOUND) >> 8) - BOARD_SIZE;}
+    void saveLower(int input) {
+        value = (value & ~TABLE_ENTRY_LOWER_BOUND) | (input + BOARD_SIZE);
+    }
+    void saveUpper(int input) {
+        value = (value & ~TABLE_ENTRY_UPPER_BOUND) | ((input + BOARD_SIZE) << 8);
+    }
+};
+
 std::vector<unsigned int> allPositions;
-std::unordered_map<unsigned int, int> allPositionsAlpha; //values in table are saved before rotating
-std::unordered_map<unsigned int, int> allPositionsBeta; //values in table are saved before rotating
+std::unordered_map<unsigned int, TableEntry> allPositionsBounds; //values in table are saved before rotating
+//The top byte of the table value is the top bound, the bottom byte is a lower bound
+//All values are shifted up by BOARD_SIZE so no negative values
 
 //  9,  8,  7, 6
 // 10, 15, 14, 5
@@ -227,24 +267,16 @@ void generateScoreMap()
             if(winValue == 1)
             {
                 int boundValue = (BOARD_SIZE - marblesPlaced) + 1;
-                allPositionsAlpha[allPositions[i]] = boundValue;
-                allPositionsBeta[allPositions[i]] = boundValue;
+                allPositionsBounds[allPositions[i]] = TableEntry(boundValue, boundValue);
             }
             else if(winValue == 2)
             {
                 int boundValue = -((BOARD_SIZE - marblesPlaced) + 1);
-                allPositionsAlpha[allPositions[i]] = boundValue;
-                allPositionsBeta[allPositions[i]] = boundValue;
-            }
-            else if(winValue == 3)
-            {
-                allPositionsAlpha[allPositions[i]] = 0;
-                allPositionsBeta[allPositions[i]] = 0;
+                allPositionsBounds[allPositions[i]] = TableEntry(boundValue, boundValue);
             }
             else
             {
-                allPositionsAlpha[allPositions[i]] = -400; //unknown
-                allPositionsBeta[allPositions[i]] = 400; //unknown
+                allPositionsBounds[allPositions[i]] = TableEntry(0, 0); //End game draw
             }
 
             continue;
@@ -255,24 +287,20 @@ void generateScoreMap()
             if(winValue == 1)
             {
                 int boundValue = (BOARD_SIZE - marblesPlaced) + 1;
-                allPositionsAlpha[allPositions[i]] = boundValue;
-                allPositionsBeta[allPositions[i]] = boundValue;
+                allPositionsBounds[allPositions[i]] = TableEntry(boundValue, boundValue);
             }
             else if(winValue == 2)
             {
                 int boundValue = -((BOARD_SIZE - marblesPlaced) + 1);
-                allPositionsAlpha[allPositions[i]] = boundValue;
-                allPositionsBeta[allPositions[i]] = boundValue;
+                allPositionsBounds[allPositions[i]] = TableEntry(boundValue, boundValue);
             }
             else if(winValue == 3)
             {
-                allPositionsAlpha[allPositions[i]] = 0;
-                allPositionsBeta[allPositions[i]] = 0;
+                allPositionsBounds[allPositions[i]] = TableEntry(0, 0);
             }
         } else
         {
-            allPositionsAlpha[allPositions[i]] = -400;
-            allPositionsBeta[allPositions[i]] = 400;
+            allPositionsBounds[allPositions[i]] = TableEntry(-BOARD_SIZE, BOARD_SIZE); //Unknown
         }
     }
 }
@@ -358,19 +386,25 @@ void generateTopMoves(std::vector<unsigned int>& resultBoardsList, unsigned int 
 int botNegamax(unsigned int board, int alpha, int beta, int& nodes);
 int topNegamax(unsigned int board, int alpha, int beta, int& nodes);
 
+int depthVar = 0;
 int botNegamax(unsigned int board, int alpha, int beta, int& nodes)
 {
+    int thisDepthVar = depthVar++;
+
     assert(alpha < beta);
-    assert(allPositionsBeta.count(board) && allPositionsAlpha.count(board));
+    assert(allPositionsBounds.count(board));
     assert((countBotPlaces(board) - countTopPlaces(board)) == 0);
 
-    int alphaCheck = allPositionsAlpha[board];
-    int betaCheck = allPositionsBeta[board];
+    TableEntry tableValue = allPositionsBounds[board];
 
-    if(alphaCheck > alpha) alpha = alphaCheck;
-    if(betaCheck < beta) beta = betaCheck;
+    alpha = std::max(tableValue.lowerBound(), alpha);
+    beta = std::min(tableValue.upperBound(), beta);
 
-    if(alpha >= beta) return alpha;
+    if(alpha >= beta)
+    {
+        depthVar--;
+        return alpha;
+    }
 
     nodes++;
     if(!(nodes%1000000))
@@ -379,7 +413,7 @@ int botNegamax(unsigned int board, int alpha, int beta, int& nodes)
     }
 
     unsigned int rotatedBoard = rotate(board);
-    assert(!winShift(rotatedBoard));
+    assert(!endGameWinShift(rotatedBoard));
 
     std::vector<unsigned int> resultBoardsList;
     generateBotMoves(resultBoardsList, rotatedBoard);
@@ -390,32 +424,36 @@ int botNegamax(unsigned int board, int alpha, int beta, int& nodes)
         if(currentScore > alpha)
         {
             alpha = currentScore;
-            allPositionsAlpha[board] = alpha;
+            allPositionsBounds[board].saveLower(alpha);
             if(alpha >= beta)
             {
+                depthVar--;
                 return alpha;
             }
         }
     }
     resultBoardsList.clear();
 
-    allPositionsBeta[board] = alpha;
+    allPositionsBounds[board].saveUpper(alpha);
+    depthVar--;
     return alpha;
 }
 
 int topNegamax(unsigned int board, int alpha, int beta, int& nodes)
 {
     assert(alpha < beta);
-    assert(allPositionsAlpha.count(board) && allPositionsBeta.count(board));
+    assert(allPositionsBounds.count(board));
     assert((countBotPlaces(board) - countTopPlaces(board)) == 1);
 
-    int alphaCheck = allPositionsAlpha[board];
-    int betaCheck = allPositionsBeta[board];
+    TableEntry tableValue = allPositionsBounds[board];
 
-    if(alphaCheck > alpha) alpha = alphaCheck;
-    if(betaCheck < beta) beta = betaCheck;
+    alpha = std::max(tableValue.lowerBound(), alpha);
+    beta = std::min(tableValue.upperBound(), beta);
 
-    if(alpha >= beta) return beta;
+    if(alpha >= beta)
+    {
+        return beta;
+    }
 
     nodes++;
     if(!(nodes%1000000))
@@ -424,18 +462,18 @@ int topNegamax(unsigned int board, int alpha, int beta, int& nodes)
     }
 
     unsigned int rotatedBoard = rotate(board);
-    assert(!winShift(rotatedBoard));
+    assert(!endGameWinShift(rotatedBoard));
 
     std::vector<unsigned int> resultBoardsList;
     generateTopMoves(resultBoardsList, rotatedBoard);
 
-    for(unsigned int moveBoards: resultBoardsList)
+    for(unsigned int moveBoard: resultBoardsList)
     {
-        int currentScore = botNegamax(moveBoards, alpha, beta, nodes);
+        int currentScore = botNegamax(moveBoard, alpha, beta, nodes);
         if(currentScore < beta)
         {
             beta = currentScore;
-            allPositionsBeta[board] = beta;
+            allPositionsBounds[board].saveUpper(beta);
             if(alpha >= beta)
             {
                 return beta;
@@ -444,7 +482,7 @@ int topNegamax(unsigned int board, int alpha, int beta, int& nodes)
     }
     resultBoardsList.clear();
 
-    allPositionsAlpha[board] = beta;
+    allPositionsBounds[board].saveLower(beta);
     return beta;
 }
 
@@ -487,14 +525,14 @@ void interactiveBotPlay(unsigned int board)
     newBoard = rotate(newBoard);
     printBoard(newBoard);
 
-    if(winShift(newBoard) == 1)
+    if(endGameWinShift(newBoard) == 1)
     {
         std::cout << "First Player Wins. Press enter to Reverse" << std::endl;
         std::cin.get();
         return;
     }
 
-    assert(!winShift(newBoard));
+    assert(!endGameWinShift(newBoard));
 
     playerTopPlay(newBoard);
 }
@@ -624,7 +662,7 @@ void randomWalk()
             std::cout << " " << newBoard;
 
             board = rotate(newBoard);
-            winValue = winShift(board);
+            winValue = endGameWinShift(board);
 
             if(winValue == 1)
             {
@@ -664,6 +702,28 @@ void randomWalk()
 
 int main()
 {
+    //Board asserts
+    assert(ROTATE_1_BACK_3    >> 16 == (BOT_BOARD & ROTATE_1_BACK_3));
+    assert(ROTATE_1_FORWARD_9 >> 16 == (BOT_BOARD & ROTATE_1_FORWARD_9));
+    assert(ROTATE_1_BACK_1    >> 16 == (BOT_BOARD & ROTATE_1_BACK_1));
+    assert(ROTATE_1_FORWARD_3 >> 16 == (BOT_BOARD & ROTATE_1_FORWARD_3));
+    assert((ROTATE_1_BACK_3 | ROTATE_1_FORWARD_9 | ROTATE_1_BACK_1 | ROTATE_1_FORWARD_3) == (((unsigned long long)1 << 32) - 1));
+    assert((ROTATE_1_BACK_3 & ROTATE_1_FORWARD_9 & ROTATE_1_BACK_1 & ROTATE_1_FORWARD_3) == 0);
+
+    assert(ROTATE_2_BACK_6    >> 16 == (BOT_BOARD & ROTATE_2_BACK_6));
+    assert(ROTATE_2_FORWARD_6 >> 16 == (BOT_BOARD & ROTATE_2_FORWARD_6));
+    assert(ROTATE_2_FORWARD_2 >> 16 == (BOT_BOARD & ROTATE_2_FORWARD_2));
+    assert(ROTATE_2_BACK_2    >> 16 == (BOT_BOARD & ROTATE_2_BACK_2));
+    assert((ROTATE_2_BACK_6 | ROTATE_2_FORWARD_6 | ROTATE_2_FORWARD_2 | ROTATE_2_BACK_2) == (((unsigned long long)1 << 32) - 1));
+    assert((ROTATE_2_BACK_6 & ROTATE_2_FORWARD_6 & ROTATE_2_FORWARD_2 & ROTATE_2_BACK_2) == 0);
+
+    assert(ROTATE_3_FORWARD_3 >> 16 == (BOT_BOARD & ROTATE_3_FORWARD_3));
+    assert(ROTATE_3_BACK_9    >> 16 == (BOT_BOARD & ROTATE_3_BACK_9));
+    assert(ROTATE_3_FORWARD_1 >> 16 == (BOT_BOARD & ROTATE_3_FORWARD_1));
+    assert(ROTATE_3_BACK_3    >> 16 == (BOT_BOARD & ROTATE_3_BACK_3));
+    assert((ROTATE_3_FORWARD_3 | ROTATE_3_BACK_9 | ROTATE_3_FORWARD_1 | ROTATE_3_BACK_3) == (((unsigned long long)1 << 32) - 1));
+    assert((ROTATE_3_FORWARD_3 & ROTATE_3_BACK_9 & ROTATE_3_FORWARD_1 & ROTATE_3_BACK_3) == 0);
+
     int botPlaced = 0;
     while(botPlaced <= BOARD_SIZE/2)
     {
@@ -690,7 +750,7 @@ int main()
 //    std::cin.get();
 //    interactiveBotPlay(0);
 
-    randomWalk();
+//    randomWalk();
 
     return 0;
 }
