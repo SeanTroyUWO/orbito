@@ -9,6 +9,19 @@ The best upper board for the number of states is 10165779. Certainly some of the
 ```math
 1+\sum_{i=1}^{S/2}(\frac{S!}{i!\times(S-i)!} \frac{(S-i)!}{i!\times(S-2i)!} + \frac{S!}{i!\times(S-i)!} \frac{(S-i)!}{(i-1)!\times(S-2i-1)!})
 ```
+This can be divided by 4 in order to account for the inherent rotational symmetry in the game.
+
+# Score
+
+The score of any node determines the solved result from that point forward. Using the function below, a positive result means the first player wins, and a negative result means the second player wins. A result of zero means that the game resulted in a draw:
+```math
+S-M+1
+```
+Where M is the number of marbles placed up to that point. This means that an earlier victory is more desirable than a late victory. The range of this score is $[-9, 10]`.
+
+# Transpostion Table
+
+The solution can be improved by saving the results of the recursive function at each node. We can compactly save our best lower and upper bound at each node in the bottom and top byte of a 2 byte integer. 
 
 # Representation
 

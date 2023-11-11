@@ -122,6 +122,29 @@ unsigned int rotate(unsigned int board)
             | ((board & ROTATES_BACK_3) >> 3);
 }
 
+unsigned int rotate1(unsigned int board)
+{
+    return ((board & ROTATE_1_BACK_3) >> 3 | (board & ROTATE_1_FORWARD_9) << 9 | (board & ROTATE_1_BACK_1) >> 1 | (board & ROTATE_1_FORWARD_3) << 3);
+}
+
+unsigned int rotate2(unsigned int board)
+{
+    return ((board & ROTATE_2_BACK_6) >> 6 | (board & ROTATE_2_FORWARD_6) << 6 | (board & ROTATE_2_FORWARD_2) << 2 | (board & ROTATE_2_BACK_2) >> 2);
+}
+
+unsigned int rotate3(unsigned int board)
+{
+    return ((board & ROTATE_3_FORWARD_3) << 3 | (board & ROTATE_3_BACK_9) >> 9 | (board & ROTATE_3_FORWARD_1) << 1 | (board & ROTATE_3_BACK_3) >> 3);
+}
+
+unsigned int uniqueKey(unsigned int board)
+{
+    assert(board == rotate1(rotate1(rotate1(rotate1(board)))));
+    assert(board == rotate2(rotate2(board)));
+    assert(board == rotate3(rotate3(rotate3(rotate3(board)))));
+    return std::min({board, rotate1(board), rotate2(board), rotate3(board)});
+}
+
 bool botChecks(unsigned int board)
 {
     if((BOT_LAST_OUTSIDE_WIN & board) == BOT_LAST_OUTSIDE_WIN) return true;
@@ -251,6 +274,19 @@ void generateScoreMap()
 {
     for(int i = 0; i < allPositions.size(); i++)
     {
+        unsigned int uniqueBoard = uniqueKey(allPositions[i]);
+
+        assert(endGameWinShift(allPositions[i]) == endGameWinShift(rotate1(allPositions[i])));
+        assert(endGameWinShift(allPositions[i]) == endGameWinShift(rotate2(allPositions[i])));
+        assert(endGameWinShift(allPositions[i]) == endGameWinShift(rotate3(allPositions[i])));
+        assert(uniqueBoard == uniqueKey(rotate1(allPositions[i])));
+        assert(uniqueBoard == uniqueKey(rotate2(allPositions[i])));
+        assert(uniqueBoard == uniqueKey(rotate3(allPositions[i])));
+
+        if(uniqueBoard != allPositions[i]) continue;
+
+        assert(allPositionsBounds.count(allPositions[i]) == 0);
+
         int marblesPlaced = countBotPlaces(allPositions[i]) + countTopPlaces(allPositions[i]);
 
         if(marblesPlaced == BOARD_SIZE) //rotate 5 times rule
@@ -310,7 +346,7 @@ void generateBotMoves(std::vector<unsigned int>& resultBoardsList, unsigned int 
     //Doesn't rotate
     assert((countBotPlaces(board) - countTopPlaces(board)) == 0);
 
-    static const std::vector<std::vector<int>> nearby{{11,1},{0,12,2},{1, 3,3},{2,4},{13,5,3},{14,6,4},{7,5},{8,6,14},{9,7,15},{8,10},
+    static const std::vector<std::vector<int>> nearby{{11,1},{0,12,2},{1,13,3},{2,4},{13,5,3},{14,6,4},{7,5},{8,6,14},{9,7,15},{8,10},
                                                       {9,15,11},{10,12,0},{11,15,13,1},{12,14,4,2},{15,7,5,13},{10,8,14,12}};
 
     for(int i = 16; i < 32; i++) // For every opponent marble. This is optional
@@ -349,7 +385,7 @@ void generateTopMoves(std::vector<unsigned int>& resultBoardsList, unsigned int 
     //Doesn't rotate
     assert((countBotPlaces(board) - countTopPlaces(board)) == 1);
 
-    static const std::vector<std::vector<int>> nearby{{11,1},{0,12,2},{1, 3,3},{2,4},{13,5,3},{14,6,4},{7,5},{8,6,14},{9,7,15},{8,10},
+    static const std::vector<std::vector<int>> nearby{{11,1},{0,12,2},{1,13,3},{2,4},{13,5,3},{14,6,4},{7,5},{8,6,14},{9,7,15},{8,10},
                                                       {9,15,11},{10,12,0},{11,15,13,1},{12,14,4,2},{15,7,5,13},{10,8,14,12}};
 
     for(int i = 0; i < 16; i++) // For every opponent marble. This is optional
@@ -392,10 +428,11 @@ int botNegamax(unsigned int board, int alpha, int beta, int& nodes)
     int thisDepthVar = depthVar++;
 
     assert(alpha < beta);
-    assert(allPositionsBounds.count(board));
+    assert(allPositionsBounds.count(uniqueKey(board)));
     assert((countBotPlaces(board) - countTopPlaces(board)) == 0);
 
-    TableEntry tableValue = allPositionsBounds[board];
+    unsigned int key = uniqueKey(board);
+    TableEntry tableValue = allPositionsBounds[key];
 
     alpha = std::max(tableValue.lowerBound(), alpha);
     beta = std::min(tableValue.upperBound(), beta);
@@ -421,10 +458,11 @@ int botNegamax(unsigned int board, int alpha, int beta, int& nodes)
     for(unsigned int moveBoard: resultBoardsList)
     {
         int currentScore = topNegamax(moveBoard, alpha, beta, nodes);
+
         if(currentScore > alpha)
         {
             alpha = currentScore;
-            allPositionsBounds[board].saveLower(alpha);
+            allPositionsBounds[key].saveLower(alpha);
             if(alpha >= beta)
             {
                 depthVar--;
@@ -434,7 +472,7 @@ int botNegamax(unsigned int board, int alpha, int beta, int& nodes)
     }
     resultBoardsList.clear();
 
-    allPositionsBounds[board].saveUpper(alpha);
+    allPositionsBounds[key].saveUpper(alpha);
     depthVar--;
     return alpha;
 }
@@ -442,10 +480,11 @@ int botNegamax(unsigned int board, int alpha, int beta, int& nodes)
 int topNegamax(unsigned int board, int alpha, int beta, int& nodes)
 {
     assert(alpha < beta);
-    assert(allPositionsBounds.count(board));
+    assert(allPositionsBounds.count(uniqueKey(board)));
     assert((countBotPlaces(board) - countTopPlaces(board)) == 1);
 
-    TableEntry tableValue = allPositionsBounds[board];
+    unsigned int key = uniqueKey(board);
+    TableEntry tableValue = allPositionsBounds[key];
 
     alpha = std::max(tableValue.lowerBound(), alpha);
     beta = std::min(tableValue.upperBound(), beta);
@@ -470,10 +509,11 @@ int topNegamax(unsigned int board, int alpha, int beta, int& nodes)
     for(unsigned int moveBoard: resultBoardsList)
     {
         int currentScore = botNegamax(moveBoard, alpha, beta, nodes);
+
         if(currentScore < beta)
         {
             beta = currentScore;
-            allPositionsBounds[board].saveUpper(beta);
+            allPositionsBounds[key].saveUpper(beta);
             if(alpha >= beta)
             {
                 return beta;
@@ -482,7 +522,7 @@ int topNegamax(unsigned int board, int alpha, int beta, int& nodes)
     }
     resultBoardsList.clear();
 
-    allPositionsBounds[board].saveLower(beta);
+    allPositionsBounds[key].saveLower(beta);
     return beta;
 }
 
@@ -684,6 +724,7 @@ void randomWalk()
 
             board = rotate(board);
             winValue = endGameWinShift(board);
+
             if(winValue == 1)
             {
               std::cout << " Win" << std::endl;
@@ -724,6 +765,7 @@ int main()
     assert((ROTATE_3_FORWARD_3 | ROTATE_3_BACK_9 | ROTATE_3_FORWARD_1 | ROTATE_3_BACK_3) == (((unsigned long long)1 << 32) - 1));
     assert((ROTATE_3_FORWARD_3 & ROTATE_3_BACK_9 & ROTATE_3_FORWARD_1 & ROTATE_3_BACK_3) == 0);
 
+
     int botPlaced = 0;
     while(botPlaced <= BOARD_SIZE/2)
     {
@@ -750,7 +792,7 @@ int main()
 //    std::cin.get();
 //    interactiveBotPlay(0);
 
-//    randomWalk();
+    randomWalk();
 
     return 0;
 }
